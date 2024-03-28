@@ -24,7 +24,8 @@ def preprocess(data):
     return data
 
 
-def filter_data(data, meeting_to_attendance_map, selected_meetings):
+def filter_data(data, meeting_to_attendance_map, selected_meetings, teams):
+    data = data[data['Team'].isin(teams)]
     # Filter columns based on selected meetings and map
     columns_to_keep = ['Employee Name', 'Team', 'Working period']
     for meeting in selected_meetings:
@@ -98,7 +99,7 @@ def summary_table(data):
             height=40
         ))]
     )
-    fig.update_layout(margin=dict(l=0, r=10, b=10, t=30), height=(n_rows * 40) + 80)
+    fig.update_layout(margin=dict(l=0, r=10, b=10, t=30), height=(n_rows * 40) + 160)
     return fig
 
 

@@ -63,7 +63,7 @@ def main():
         if len(selected_meetings) == 0:
             selected_meetings = meetings
 
-        filtered_data = filter_data(quarter_data, meeting_to_attendance_map, selected_meetings)
+        filtered_data = filter_data(quarter_data, meeting_to_attendance_map, selected_meetings, teams)
 
         total_meetings, attended, attendance_percentage, working_period = calculate_team_attendance(filtered_data)
         kpis[1].metric(label="Total Meetings", value=int(total_meetings))
