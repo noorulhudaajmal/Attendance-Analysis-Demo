@@ -15,10 +15,11 @@ with open("css/style.css") as css:
 st.markdown("""
 <style>
     [data-testid=stSidebar] {
-        padding-top: 10px;
+        padding-top: 1 rem;
     }
     [data-testid=block-container] {
-        padding-top: 0px;
+        padding: 0px;
+        margin-top:0px;
     }
    [data-testid=stSidebarUserContent]{
       margin-top: -75px;
@@ -28,20 +29,54 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------------------------------- Data Loading -----------------------------
+def main():
+    data_file = st.sidebar.file_uploader(label="Upload data file", accept_multiple_files=False, type=["xlsx", "xls"])
 
-data_file = st.sidebar.file_uploader(label="Upload data file", accept_multiple_files=False, type=["xlsx", "xls"])
+    quarter_sheets = []
 
-quarter_sheets = []
+    if data_file is not None:
+        st.title('Team Attendance Dashboard')
+        # data_sheet = pd.read_excel(data_file, sheet_name='Data')
+        quarter_sheets = [pd.read_excel(data_file, sheet_name=f'Q{i}',
+                                        usecols=['Employee Name', 'Team', 'Working period', 'Attended', 'Absent',
+                                                'Total Meetings'],
+                                        skiprows=2,
+                                        # header=[0,1], index_col=[0]
+                                        ) for i in range(1, 5)]
+        quarters_data = [preprocess(i) for i in quarter_sheets]
+        
+        quarter = st.sidebar.selectbox(label='Select Quarter', options=['Q1', 'Q2', 'Q3', 'Q4'])
+        selected_quarter_data = quarters_data[int(quarter[1])-1]
+        
+        all_departments = extract_teams(selected_quarter_data)
+        department = st.sidebar.selectbox('Choose Departments', options=all_departments)
+        
+        filtered_data = selected_quarter_data[selected_quarter_data['Team'] == department]
 
-if data_file is not None:
-    # data_sheet = pd.read_excel(data_file, sheet_name='Data')
-    quarter_sheets = [pd.read_excel(data_file, sheet_name=f'Q{i}',
-                                    usecols=['Employee Name', 'Team', 'Working period', 'Attended', 'Absent',
-                                             'Total Meetings'],
-                                    skiprows=2) for i in range(1, 5)]
+        total_meetings, attended, attendance_percentage, working_period = calculate_team_attendance(filtered_data)
+        kpis = st.columns(4)
+        kpis[0].metric(label="Total Meetings", value=int(total_meetings))
+        kpis[1].metric(label="Total Attended Meetings", value=int(attended))
+        kpis[2].metric(label="Attendance Percentage", value=f'{attendance_percentage:.1f}%')
+        kpis[3].metric(label="Avg. Working Period", value=f'{working_period:.2f}')
+
+        attendance_summary_table = summary_table(filtered_data)
+        st.plotly_chart(attendance_summary_table, use_container_width=True)
+
+        fig = create_working_period_plot(filtered_data)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        
+    else:
+        st.info("Upload data file to see analytics.")
 
 
 # ----------------------------------- App View ----------------------------------
+
+def extract_teams(quarter_data):
+    all_departments = set((list(quarter_data['Team'].unique())))
+        
+    return all_departments
 
 
 def preprocess(data):
@@ -50,113 +85,51 @@ def preprocess(data):
     data['Total Meetings'] = pd.to_numeric(data['Total Meetings'], errors='coerce')
     data['Working period'] = pd.to_numeric(data['Working period'], errors='coerce')
 
+    data = data.dropna(subset='Team')
+    data = data[~((data['Employee Name'] == 1) & (data['Team'] == 1))]
+
     return data
 
 
-def calculate_team_attendance_percentage(quarter_data, department):
-    filtered_data = []
-    for i in range(len(quarter_data)):
-        filtered_quarter_data = quarter_data[i][quarter_data[i]['Team'] == department]
-        total_meetings, attended, attendance_percentage = calculate_team_attendance(filtered_quarter_data)
-        filtered_data.append({
-            'Quarter': f'Q{i + 1}',
-            'Total Meetings': total_meetings,
-            'Attended': attended,
-            'Attendance Percentage': attendance_percentage
-        })
-    return pd.DataFrame(filtered_data)
-
-
-def calculate_team_attendance(filtered_quarter_data):
-    total_meetings = filtered_quarter_data['Total Meetings'].sum()
-    attended = filtered_quarter_data['Attended'].sum()
+def calculate_team_attendance(filtered_data):
+    total_meetings = filtered_data['Total Meetings'].sum()
+    attended = filtered_data['Attended'].sum()
     attendance_percentage = (attended / total_meetings) * 100 if total_meetings > 0 else 0
-    return total_meetings, attended, attendance_percentage
+    working_period = filtered_data['Working period'].mean()
+    return total_meetings, attended, attendance_percentage, working_period
 
 
-def create_workingperiod_plot(quarter_data):
+def summary_table(data):
+    n_rows = len(data)
+    fig = go.Figure(data=[go.Table(
+        columnwidth=[2,2,1,1,1,1],
+        header=dict(
+            values=list(data.columns),
+            font=dict(size=14, color='white'),
+            fill_color='#264653',
+            align=['left', 'center'],
+            height=40
+        ),
+        cells=dict(
+            values=[data[K].tolist() for K in data.columns],
+            font=dict(size=12, color="black"),
+            fill_color='#f5ebe0',
+            height=40
+        ))]
+    )
+    fig.update_layout(margin=dict(l=0, r=10, b=10, t=30), height=(n_rows*40)+80)
+    return fig
+
+
+def create_working_period_plot(data):
     # Plot for Working Period
     fig_working_period = px.bar(
-        quarter_data,
+        data,
         x='Employee Name',
         y='Working period',
         title='Working Period by Employee'
     )
     return fig_working_period
-
-
-def create_attendance_chart(filtered_attendance_df):
-    # Create a figure with a secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-    # Add the bar charts for Attended and Total Meetings
-    fig.add_trace(
-        go.Bar(x=filtered_attendance_df['Quarter'], y=filtered_attendance_df['Attended'], name='Attended'),
-        secondary_y=False,
-    )
-
-    fig.add_trace(
-        go.Bar(x=filtered_attendance_df['Quarter'], y=filtered_attendance_df['Total Meetings'], name='Total Meetings'),
-        secondary_y=False,
-    )
-
-    # Add the scatter line for Attendance Percentage
-    fig.add_trace(
-        go.Scatter(x=filtered_attendance_df['Quarter'], y=filtered_attendance_df['Attendance Percentage'],
-                   name='Attendance Percentage', mode='lines+markers'),
-        secondary_y=True,
-    )
-
-    # Set the axis titles
-    fig.update_layout(
-        title="Team Attendance Analysis",
-        xaxis_title="Quarter",
-        yaxis_title="Meetings",
-        yaxis2_title="Attendance Percentage (%)",
-    )
-
-    return fig
-
-
-def main():
-    # Streamlit app setup
-    st.title('Team Attendance Dashboard')
-
-    if quarter_sheets:
-        quarter_data = [preprocess(i) for i in quarter_sheets]
-        q_1 = quarter_data[0]
-        q_2 = quarter_data[1]
-        q_3 = quarter_data[2]
-        q_4 = quarter_data[3]
-        all_departments = set((list(q_1['Team'].unique()) + list(q_2['Team'].unique()) +
-                               list(q_3['Team'].unique()) + list(q_4['Team'].unique())))
-
-        # Select box for Department
-        department = st.sidebar.selectbox('Choose Departments', options=all_departments)
-
-        filtered_attendance_df = calculate_team_attendance_percentage(quarter_data, department)
-        st.dataframe(filtered_attendance_df, hide_index=True)
-
-        fig = create_attendance_chart(filtered_attendance_df)
-        fig.update_layout(title=f'Attendance Analysis for {department}')
-        st.plotly_chart(fig, use_container_width=True)
-
-        row_2 = st.columns((1, 5))
-        quarter_index = 0
-        with row_2[0]:
-            st.write("#")
-            st.write("#")
-            quarter = st.selectbox("Select Quarter", options=['Q1', 'Q2', 'Q3', 'Q4'])
-            quarter_index = int(quarter[1]) - 1
-
-        selected_quarter_data = quarter_data[quarter_index]
-        selected_quarter_data = selected_quarter_data[selected_quarter_data['Team'] == department]
-        fig = create_workingperiod_plot(selected_quarter_data)
-        row_2[1].plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.info("Upload data file to see analytics.")
-
 
 
 if __name__ == '__main__':

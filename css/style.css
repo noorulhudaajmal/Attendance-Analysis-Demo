@@ -5,6 +5,13 @@ html, body, [class*="css"] {
     font-weight: 500;
 }
 
+.block-container
+{
+    padding-top: 0.5rem;
+    padding-bottom: 0rem;
+    margin-top: 0.5rem;
+}
+
 .svg-container{
     border-radius:5%;
 }
