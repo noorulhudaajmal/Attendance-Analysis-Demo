@@ -14,23 +14,16 @@ with open("css/style.css") as css:
 
 st.markdown("""
 <style>
-    [data-testid=stSidebar] {
-        padding-top: 1 rem;
-    }
     [data-testid=block-container] {
         padding: 0px;
         margin-top:0px;
-    }
-   [data-testid=stSidebarUserContent]{
-      margin-top: -75px;
-      margin-top: -75px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ----------------------------------- Data Loading -----------------------------
 def main():
-    data_file = st.sidebar.file_uploader(label="Upload data file", accept_multiple_files=False, type=["xlsx", "xls"])
+    data_file = './data/data.xlsx' #st.sidebar.file_uploader(label="Upload data file", accept_multiple_files=False, type=["xlsx", "xls"])
 
     quarter_sheets = []
 
