@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 from utils import preprocess, calculate_team_attendance, summary_table, \
-    filter_data
+    filter_data, attendance_plot, working_period_plot
 
 # ------------------------------ Page Configuration------------------------------
 st.set_page_config(page_title="Attendance Analytics", page_icon="📊", layout="wide")
@@ -21,9 +21,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+title_temp = """
+<div style="background-color:{};padding:2px;border-radius:10px">
+<h3 style="color:{};text-align:center;">{}</h3>
+</div>
+"""
+
 
 # ----------------------------------- App View -----------------------------
 def main():
+    st.markdown(title_temp.format("#646F58", "white", "Team Attendance Dashboard"), unsafe_allow_html=True)
+
     data_file = './data/data.xlsx'
     file_data = pd.ExcelFile(data_file)
 
@@ -43,7 +51,7 @@ def main():
         teams = avb_teams
 
     for quarter in quarters:
-        st.write(f"## {quarter}")
+        st.write(f"## Quarter-{int(str(quarter)[1])}")
         header_df = pd.read_excel(data_file, sheet_name=quarter, nrows=1, skiprows=1)
         meetings = [col for col in header_df.columns if not col.startswith('Unnamed')]
         n_meetings = len(meetings)
@@ -63,16 +71,22 @@ def main():
         if len(selected_meetings) == 0:
             selected_meetings = meetings
 
-        filtered_data = filter_data(quarter_data, meeting_to_attendance_map, selected_meetings, teams)
+        raw_data, filtered_data = filter_data(quarter_data, meeting_to_attendance_map, selected_meetings, teams)
 
         total_meetings, attended, attendance_percentage, working_period = calculate_team_attendance(filtered_data)
         kpis[1].metric(label="Total Meetings", value=int(total_meetings))
-        kpis[2].metric(label="Total Attended Meetings", value=int(attended))
-        kpis[3].metric(label="Attendance Percentage", value=f'{attendance_percentage:.1f}%')
+        kpis[2].metric(label="Attended Meetings", value=int(attended))
+        kpis[3].metric(label="Attendance %age", value=f'{attendance_percentage:.1f}%')
         kpis[4].metric(label="Avg. Working Period", value=f'{working_period:.2f}')
 
         attendance_summary_table = summary_table(filtered_data)
         st.plotly_chart(attendance_summary_table, use_container_width=True)
+        # st.dataframe(raw_data)
+        fig = attendance_plot(filtered_data, selected_meetings)
+        st.plotly_chart(fig, use_container_width=True)
+
+        working_period_fig = working_period_plot(raw_data)
+        st.plotly_chart(working_period_fig, use_container_width=True)
 
         st.write("---")
 

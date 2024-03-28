@@ -68,7 +68,7 @@ def filter_data(data, meeting_to_attendance_map, selected_meetings, teams):
     grouped_data['Total Meetings'] = grouped_data['Absent'] + grouped_data['Attended']
     grouped_data['Attendance Percentage'] = (grouped_data['Attended'] / grouped_data['Total Meetings']) * 100
 
-    return grouped_data
+    return filtered_data, grouped_data
 
 
 def calculate_team_attendance(filtered_data):
@@ -82,6 +82,8 @@ def calculate_team_attendance(filtered_data):
 def summary_table(data):
     data['Attendance Percentage'] = (data['Attendance Percentage']).round(1).astype(str) + '%'
     data['Working period'] = (data['Working period']).round(2)
+    col_to_display = ['Team', 'Working period', 'Total Meetings', 'Attended', 'Attendance Percentage']
+    data = data[col_to_display]
     n_rows = len(data)
     fig = go.Figure(data=[go.Table(
         # columnwidth=[2, 2, 1, 1, 1, 1, 1],
@@ -99,26 +101,93 @@ def summary_table(data):
             height=40
         ))]
     )
-    fig.update_layout(margin=dict(l=0, r=10, b=10, t=30), height=(n_rows * 40) + 160)
+    fig.update_layout(margin=dict(l=0, r=10, b=10, t=30), height=(n_rows * 40) + 100)
     return fig
 
 
-def create_working_period_plot(quarters_data, departments):
-    # Merge the list of dataframes into a single dataframe
-    selected_data = pd.concat(quarters_data, ignore_index=True)
+def attendance_plot(data, meetings):
+    # Create a subplot with 1 row and 1 column, with a secondary y-axis
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Filter the data for the selected departments
-    data = selected_data[selected_data['Team'].isin(departments)]
-
-    # Calculate Total %age and format it with a percentage sign and one decimal place
-    data['Total %age'] = ((data['Attended'] / data['Total Meetings']) * 100).map(lambda x: '{:.1f}%'.format(x))
-
-    # Plot for Working Period
-    fig_working_period = px.bar(
-        data,
-        x='Employee Name',
-        y='Working period',
-        color='Team',
-        title='Working Period by Employee'
+    # Add bar traces for Total Meetings and each meeting's attendance
+    fig.add_trace(
+        go.Bar(
+            x=data['Team'],
+            y=data['Total Meetings'],
+            name='Total Meetings'
+        ),
+        secondary_y=False
     )
-    return fig_working_period
+    for meeting in meetings:
+        fig.add_trace(
+            go.Bar(
+                x=data['Team'],
+                y=data[f'{meeting}-Attended'],
+                name=f'{meeting}'
+            ),
+            secondary_y=False
+        )
+
+    # Add scatter trace for Attendance Percentage on the secondary y-axis
+    fig.add_trace(
+        go.Scatter(
+            x=data['Team'],
+            y=data['Attendance Percentage'],
+            mode='markers+lines',
+            name='Attendance Percentage'
+        ),
+        secondary_y=True
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="Team")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="Meetings", secondary_y=False)
+    fig.update_yaxes(title_text="Attendance Percentage", secondary_y=True)
+
+    fig.update_layout(title='Summary Analytics', height=500)
+
+    return fig
+
+
+def working_period_plot(data):
+    data['Total Meetings'] = data['Absent'] + data['Attended']
+    data['Attendance Percentage'] = (data['Attended'] / data['Total Meetings']) * 100
+
+    # Create a subplot with 1 row and 1 column, with a secondary y-axis
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Add bar trace for Working Period
+    fig.add_trace(
+        go.Bar(
+            x=data['Employee Name'],
+            y=data['Working period'],
+            name='Working Period',
+            # marker_color=data['Team'],  # Use Team as color
+        ),
+        secondary_y=False
+    )
+
+    # Add scatter trace for Attendance Percentage on the secondary y-axis
+    fig.add_trace(
+        go.Scatter(
+            x=data['Employee Name'],
+            y=data['Attendance Percentage'],
+            name='Attendance Percentage',
+            mode='markers+lines',
+        ),
+        secondary_y=True
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="Employee Name")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="Working Period", secondary_y=False)
+    fig.update_yaxes(title_text="Attendance Percentage", secondary_y=True)
+
+    # Set plot title
+    fig.update_layout(title_text="Working Period by Employee")
+
+    return fig
