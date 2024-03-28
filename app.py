@@ -65,6 +65,8 @@ def main():
             attendance_summary_table = summary_table(filtered_data)
             st.plotly_chart(attendance_summary_table, use_container_width=True)
 
+            st.write("---")
+
         fig = create_working_period_plot(selected_data, departments)
         st.plotly_chart(fig, use_container_width=True)
 
